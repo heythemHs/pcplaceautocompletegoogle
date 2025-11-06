@@ -1,16 +1,23 @@
-# PrestaShop Google Places Autocomplete Module
+# PrestaShop Google Places Autocomplete Module (New API)
 
-A PrestaShop module (v1.7.x and above) that integrates Google Places Autocomplete API with address forms, automatically saving latitude and longitude coordinates for delivery addresses.
+A PrestaShop module (v1.7.x and above) that integrates **Google Places API (New)** - Autocomplete with address forms, automatically saving latitude and longitude coordinates for delivery addresses.
+
+> **Note**: Version 2.0.0+ uses the new Google Places API which offers improved performance, better accuracy, and optimized billing with session tokens.
 
 ## Features
 
-- **Google Places Autocomplete**: Automatically suggests addresses as customers type
+- **New Google Places API**: Uses the latest Places API (New) for better performance and accuracy
+- **Smart Autocomplete**: Automatically suggests addresses as customers type (debounced for optimal performance)
 - **Address Auto-fill**: Automatically fills in address fields (street, city, postcode, country) when an address is selected
 - **Coordinate Storage**: Saves latitude and longitude in the database for each address
+- **Session Token Optimization**: Implements session tokens for cost-effective API billing
+- **Location Biasing**: Uses geolocation to prioritize nearby results
 - **Configuration Panel**: Easy-to-use admin interface with API key management
-- **API Key Validation**: Built-in button to test your Google API key validity
+- **API Key Validation**: Built-in button to test your Google API key validity with the new API
 - **Order Details Display**: Shows coordinates in the backoffice order details page with a link to Google Maps
 - **Universal Compatibility**: Works with both checkout and account address forms
+- **Keyboard Navigation**: Full keyboard support for accessibility (arrow keys, Enter, Escape)
+- **Secure**: API key is never exposed to frontend - all requests go through server-side proxy
 
 ## Installation
 
@@ -39,10 +46,10 @@ A PrestaShop module (v1.7.x and above) that integrates Google Places Autocomplet
 
 ### Step 2: Enable Required APIs
 
-Enable the following APIs in your Google Cloud project:
-- **Places API**
-- **Maps JavaScript API**
-- **Geocoding API** (optional, for additional features)
+Enable the following API in your Google Cloud project:
+- **Places API (New)** - This is the only required API for the module to work
+
+**Important**: This module uses the **NEW** Places API, not the legacy Places API. Make sure "Places API (New)" is enabled in your Google Cloud Console.
 
 ### Step 3: Create API Key
 
@@ -50,9 +57,11 @@ Enable the following APIs in your Google Cloud project:
 2. Click **Create Credentials > API Key**
 3. Copy your API key
 4. (Recommended) Click **Restrict Key** to add restrictions:
-   - **Application restrictions**: Set to "HTTP referrers"
-   - Add your domain(s): `yourdomain.com/*`
-   - **API restrictions**: Restrict to "Places API" and "Maps JavaScript API"
+   - **Application restrictions**: Can be set to "None" or "IP addresses" (your server IP)
+   - Since all API calls go through your server, HTTP referrer restrictions are not needed
+   - **API restrictions**: Select "Restrict key" and choose **"Places API (New)"**
+
+**Security Note**: This module uses server-side proxy for all API calls, so your API key is never exposed to the frontend. However, restricting the API key to only "Places API (New)" is still recommended for security.
 
 ### Step 4: Configure in PrestaShop
 
@@ -181,9 +190,21 @@ Uses Google Places Autocomplete API
 
 ## Version History
 
+### 2.0.0 (Current)
+- **Major Update**: Migrated to Google Places API (New)
+- Server-side proxy for enhanced security (API key never exposed to frontend)
+- Session token implementation for optimized billing
+- Custom autocomplete UI with improved UX
+- Debounced API calls for better performance
+- Keyboard navigation support (arrow keys, Enter, Escape)
+- Location biasing using geolocation
+- Direct Place Details API integration for coordinates
+- Updated API key testing for new API
+- Improved error handling and logging
+
 ### 1.0.0
 - Initial release
-- Google Places autocomplete integration
+- Google Places autocomplete integration (legacy JavaScript API)
 - Coordinate storage and display
 - API key validation
 - Multi-language support

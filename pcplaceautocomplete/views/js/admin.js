@@ -1,5 +1,5 @@
 /**
- * Admin JavaScript for Google Places Autocomplete Module
+ * Admin JavaScript for Google Places Autocomplete Module (New API)
  */
 
 $(document).ready(function() {
@@ -35,12 +35,12 @@ $(document).ready(function() {
             resultDiv
                 .removeClass('success error')
                 .addClass('loading')
-                .html('<i class="icon-refresh icon-spin"></i> Testing API key...')
+                .html('<i class="icon-refresh icon-spin"></i> Testing API key with new Places API...')
                 .show();
 
             testButton.prop('disabled', true);
 
-            // Test the API key by loading the Google Maps API
+            // Test the API key using our AJAX endpoint
             testGoogleApiKey(apiKey, function(success, message) {
                 testButton.prop('disabled', false);
 
@@ -60,39 +60,33 @@ $(document).ready(function() {
     }
 
     /**
-     * Test Google API Key
+     * Test Google API Key using new Places API
      */
     function testGoogleApiKey(apiKey, callback) {
-        // Create a temporary script element to load Google Maps API
-        var script = document.createElement('script');
-        var callbackName = 'googleMapsCallback_' + Date.now();
+        // Check if ajax URL is available
+        if (typeof pcplace_ajax_url === 'undefined') {
+            callback(false, 'Configuration error: AJAX URL not found');
+            return;
+        }
 
-        // Set up success callback
-        window[callbackName] = function() {
-            // Check if google.maps.places is available
-            if (typeof google !== 'undefined' &&
-                typeof google.maps !== 'undefined' &&
-                typeof google.maps.places !== 'undefined') {
-                callback(true, 'API Key is valid and Places API is enabled!');
-            } else {
-                callback(false, 'API Key is valid but Places API is not enabled.');
+        $.ajax({
+            url: pcplace_ajax_url,
+            type: 'POST',
+            data: {
+                action: 'testApiKey',
+                apiKey: apiKey
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    callback(true, response.message || 'API Key is valid and Places API (New) is enabled!');
+                } else {
+                    callback(false, response.error || 'API Key test failed');
+                }
+            },
+            error: function(xhr, status, error) {
+                callback(false, 'Request failed: ' + error);
             }
-
-            // Cleanup
-            delete window[callbackName];
-            document.body.removeChild(script);
-        };
-
-        // Set up error callback
-        script.onerror = function() {
-            callback(false, 'API Key is invalid or there was an error loading the API.');
-            delete window[callbackName];
-            document.body.removeChild(script);
-        };
-
-        // Load the API
-        script.src = 'https://maps.googleapis.com/maps/api/js?key=' + apiKey +
-                     '&libraries=places&callback=' + callbackName;
-        document.body.appendChild(script);
+        });
     }
 });

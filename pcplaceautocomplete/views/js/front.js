@@ -1,5 +1,5 @@
 /**
- * Frontend JavaScript for Google Places Autocomplete
+ * Frontend JavaScript for Google Places Autocomplete (New API)
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -14,12 +14,12 @@ if (typeof prestashop !== 'undefined') {
 }
 
 /**
- * Initialize Google Places Autocomplete
+ * Initialize Google Places Autocomplete using New API
  */
 function initGooglePlacesAutocomplete() {
-    // Check if Google Maps API is loaded
-    if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
-        console.error('Google Maps API not loaded');
+    // Check if AJAX URL is defined
+    if (typeof pcplace_ajax_url === 'undefined') {
+        console.error('Places Autocomplete: AJAX URL not defined');
         return;
     }
 
@@ -32,7 +32,7 @@ function initGooglePlacesAutocomplete() {
     }
 
     if (addressInputs.length === 0) {
-        console.log('No address input found');
+        console.log('Places Autocomplete: No address input found');
         return;
     }
 
@@ -46,34 +46,252 @@ function initGooglePlacesAutocomplete() {
         // Mark as initialized
         addressInput.setAttribute('data-autocomplete-initialized', 'true');
 
-        // Create autocomplete instance
-        var autocomplete = new google.maps.places.Autocomplete(addressInput, {
-            types: ['address'],
-            fields: ['address_components', 'geometry', 'formatted_address']
+        // Create autocomplete UI
+        setupAutocomplete(addressInput);
+    });
+}
+
+/**
+ * Setup autocomplete for an input field
+ */
+function setupAutocomplete(inputElement) {
+    var suggestionsContainer = null;
+    var debounceTimer = null;
+    var currentFocusIndex = -1;
+    var sessionToken = typeof pcplace_session_token !== 'undefined' ? pcplace_session_token : generateSessionToken();
+
+    // Create suggestions dropdown
+    createSuggestionsDropdown();
+
+    // Attach event listeners
+    inputElement.addEventListener('input', function(e) {
+        var value = e.target.value;
+
+        // Clear existing timer
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+
+        // Hide suggestions if input is empty
+        if (!value || value.length < 3) {
+            hideSuggestions();
+            return;
+        }
+
+        // Debounce API calls (wait 300ms after user stops typing)
+        debounceTimer = setTimeout(function() {
+            fetchAutocompleteSuggestions(value);
+        }, 300);
+    });
+
+    // Handle keyboard navigation
+    inputElement.addEventListener('keydown', function(e) {
+        if (!suggestionsContainer || suggestionsContainer.style.display === 'none') {
+            return;
+        }
+
+        var items = suggestionsContainer.querySelectorAll('.pcplace-suggestion-item');
+
+        if (e.keyCode === 40) { // Down arrow
+            e.preventDefault();
+            currentFocusIndex++;
+            if (currentFocusIndex >= items.length) currentFocusIndex = 0;
+            setActiveItem(items);
+        } else if (e.keyCode === 38) { // Up arrow
+            e.preventDefault();
+            currentFocusIndex--;
+            if (currentFocusIndex < 0) currentFocusIndex = items.length - 1;
+            setActiveItem(items);
+        } else if (e.keyCode === 13) { // Enter
+            e.preventDefault();
+            if (currentFocusIndex > -1 && items[currentFocusIndex]) {
+                items[currentFocusIndex].click();
+            }
+        } else if (e.keyCode === 27) { // Escape
+            hideSuggestions();
+        }
+    });
+
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+        if (e.target !== inputElement && !suggestionsContainer.contains(e.target)) {
+            hideSuggestions();
+        }
+    });
+
+    /**
+     * Create suggestions dropdown container
+     */
+    function createSuggestionsDropdown() {
+        suggestionsContainer = document.createElement('div');
+        suggestionsContainer.className = 'pcplace-suggestions-container';
+        suggestionsContainer.style.cssText = 'position: absolute; z-index: 9999; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); max-height: 300px; overflow-y: auto; display: none; width: 100%;';
+
+        // Insert after input
+        inputElement.parentNode.style.position = 'relative';
+        inputElement.parentNode.appendChild(suggestionsContainer);
+    }
+
+    /**
+     * Fetch autocomplete suggestions from API
+     */
+    function fetchAutocompleteSuggestions(input) {
+        var formData = new FormData();
+        formData.append('action', 'autocomplete');
+        formData.append('input', input);
+        formData.append('sessionToken', sessionToken);
+
+        // Get user's location if available
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                formData.append('latitude', position.coords.latitude);
+                formData.append('longitude', position.coords.longitude);
+                sendAutocompleteRequest(formData);
+            }, function() {
+                // Geolocation failed, send request without location
+                sendAutocompleteRequest(formData);
+            });
+        } else {
+            sendAutocompleteRequest(formData);
+        }
+    }
+
+    /**
+     * Send autocomplete request to server
+     */
+    function sendAutocompleteRequest(formData) {
+        fetch(pcplace_ajax_url, {
+            method: 'POST',
+            body: formData
+        })
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(data) {
+            if (data.suggestions && data.suggestions.length > 0) {
+                displaySuggestions(data.suggestions);
+            } else {
+                hideSuggestions();
+            }
+        })
+        .catch(function(error) {
+            console.error('Autocomplete error:', error);
+            hideSuggestions();
         });
+    }
 
-        // Listen for place selection
-        autocomplete.addListener('place_changed', function() {
-            var place = autocomplete.getPlace();
+    /**
+     * Display suggestions in dropdown
+     */
+    function displaySuggestions(suggestions) {
+        suggestionsContainer.innerHTML = '';
+        currentFocusIndex = -1;
 
-            if (!place.geometry) {
-                console.error('No geometry data for selected place');
-                return;
+        suggestions.forEach(function(suggestion) {
+            if (!suggestion.placePrediction) {
+                return; // Skip query predictions
             }
 
-            // Get latitude and longitude
-            var latitude = place.geometry.location.lat();
-            var longitude = place.geometry.location.lng();
+            var item = document.createElement('div');
+            item.className = 'pcplace-suggestion-item';
+            item.style.cssText = 'padding: 10px; cursor: pointer; border-bottom: 1px solid #eee;';
 
-            console.log('Selected place coordinates:', latitude, longitude);
+            var mainText = suggestion.placePrediction.structuredFormat.mainText.text;
+            var secondaryText = suggestion.placePrediction.structuredFormat.secondaryText ? suggestion.placePrediction.structuredFormat.secondaryText.text : '';
 
-            // Store coordinates in hidden fields or cookies
-            storeCoordinates(latitude, longitude);
+            item.innerHTML = '<strong>' + escapeHtml(mainText) + '</strong><br><small style="color: #666;">' + escapeHtml(secondaryText) + '</small>';
 
-            // Parse address components and fill form fields
-            fillAddressFields(place, addressInput);
+            // Hover effect
+            item.addEventListener('mouseenter', function() {
+                this.style.backgroundColor = '#f5f5f5';
+            });
+            item.addEventListener('mouseleave', function() {
+                this.style.backgroundColor = 'white';
+            });
+
+            // Click handler
+            item.addEventListener('click', function() {
+                handlePlaceSelection(suggestion.placePrediction);
+            });
+
+            suggestionsContainer.appendChild(item);
         });
-    });
+
+        suggestionsContainer.style.display = 'block';
+    }
+
+    /**
+     * Handle place selection
+     */
+    function handlePlaceSelection(placePrediction) {
+        hideSuggestions();
+
+        // Set input value to main text
+        inputElement.value = placePrediction.text.text;
+
+        // Fetch place details to get coordinates and address components
+        fetchPlaceDetails(placePrediction.placeId);
+    }
+
+    /**
+     * Fetch place details including coordinates
+     */
+    function fetchPlaceDetails(placeId) {
+        var formData = new FormData();
+        formData.append('action', 'placeDetails');
+        formData.append('placeId', placeId);
+
+        fetch(pcplace_ajax_url, {
+            method: 'POST',
+            body: formData
+        })
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(data) {
+            if (data.location && data.addressComponents) {
+                // Extract coordinates
+                var latitude = data.location.latitude;
+                var longitude = data.location.longitude;
+
+                // Store coordinates
+                storeCoordinates(latitude, longitude);
+
+                // Fill address fields
+                fillAddressFields(data.addressComponents, data.formattedAddress);
+
+                // Generate new session token for next search
+                sessionToken = generateSessionToken();
+            }
+        })
+        .catch(function(error) {
+            console.error('Place details error:', error);
+        });
+    }
+
+    /**
+     * Set active item in suggestions
+     */
+    function setActiveItem(items) {
+        items.forEach(function(item, index) {
+            if (index === currentFocusIndex) {
+                item.style.backgroundColor = '#f5f5f5';
+            } else {
+                item.style.backgroundColor = 'white';
+            }
+        });
+    }
+
+    /**
+     * Hide suggestions dropdown
+     */
+    function hideSuggestions() {
+        if (suggestionsContainer) {
+            suggestionsContainer.style.display = 'none';
+            suggestionsContainer.innerHTML = '';
+        }
+        currentFocusIndex = -1;
+    }
 }
 
 /**
@@ -119,12 +337,7 @@ function storeCoordinates(latitude, longitude) {
     formData.append('latitude', latitude);
     formData.append('longitude', longitude);
 
-    // Use prestashop's base URL if available
-    var baseUrl = typeof prestashop !== 'undefined' && prestashop.urls && prestashop.urls.base_url
-        ? prestashop.urls.base_url
-        : window.location.origin;
-
-    fetch(baseUrl + '/index.php?fc=module&module=pcplaceautocomplete&controller=ajax', {
+    fetch(pcplace_ajax_url, {
         method: 'POST',
         body: formData
     })
@@ -140,15 +353,9 @@ function storeCoordinates(latitude, longitude) {
 }
 
 /**
- * Fill address fields from Google Places result
+ * Fill address fields from address components
  */
-function fillAddressFields(place, addressInput) {
-    var addressComponents = place.address_components;
-
-    if (!addressComponents) {
-        return;
-    }
-
+function fillAddressFields(addressComponents, formattedAddress) {
     var addressData = {
         street_number: '',
         route: '',
@@ -158,41 +365,33 @@ function fillAddressFields(place, addressInput) {
         administrative_area_level_1: ''
     };
 
-    // Parse address components
+    // Parse address components (New API format)
     addressComponents.forEach(function(component) {
-        var type = component.types[0];
+        var types = component.types || [];
 
-        if (type === 'street_number') {
-            addressData.street_number = component.long_name;
-        } else if (type === 'route') {
-            addressData.route = component.long_name;
-        } else if (type === 'locality') {
-            addressData.locality = component.long_name;
-        } else if (type === 'postal_code') {
-            addressData.postal_code = component.long_name;
-        } else if (type === 'country') {
-            addressData.country = component.short_name;
-        } else if (type === 'administrative_area_level_1') {
-            addressData.administrative_area_level_1 = component.long_name;
-        }
+        types.forEach(function(type) {
+            if (type === 'street_number') {
+                addressData.street_number = component.longText;
+            } else if (type === 'route') {
+                addressData.route = component.longText;
+            } else if (type === 'locality') {
+                addressData.locality = component.longText;
+            } else if (type === 'postal_code') {
+                addressData.postal_code = component.longText;
+            } else if (type === 'country') {
+                addressData.country = component.shortText;
+            } else if (type === 'administrative_area_level_1') {
+                addressData.administrative_area_level_1 = component.longText;
+            }
+        });
     });
-
-    // Fill address1 field (street number + route)
-    var fullAddress = (addressData.street_number + ' ' + addressData.route).trim();
-    if (fullAddress && addressInput) {
-        addressInput.value = fullAddress;
-        // Trigger change event
-        var event = new Event('change', { bubbles: true });
-        addressInput.dispatchEvent(event);
-    }
 
     // Fill city field
     if (addressData.locality) {
         var cityInputs = document.querySelectorAll('input[name="city"], input[id*="city"]');
         cityInputs.forEach(function(input) {
             input.value = addressData.locality;
-            var event = new Event('change', { bubbles: true });
-            input.dispatchEvent(event);
+            triggerChangeEvent(input);
         });
     }
 
@@ -201,8 +400,7 @@ function fillAddressFields(place, addressInput) {
         var postcodeInputs = document.querySelectorAll('input[name="postcode"], input[id*="postcode"]');
         postcodeInputs.forEach(function(input) {
             input.value = addressData.postal_code;
-            var event = new Event('change', { bubbles: true });
-            input.dispatchEvent(event);
+            triggerChangeEvent(input);
         });
     }
 
@@ -216,11 +414,41 @@ function fillAddressFields(place, addressInput) {
                 if (options[i].getAttribute('data-iso-code') === addressData.country ||
                     options[i].text.toLowerCase().includes(addressData.country.toLowerCase())) {
                     select.selectedIndex = i;
-                    var event = new Event('change', { bubbles: true });
-                    select.dispatchEvent(event);
+                    triggerChangeEvent(select);
                     break;
                 }
             }
         });
     }
+}
+
+/**
+ * Trigger change event on element
+ */
+function triggerChangeEvent(element) {
+    var event = new Event('change', { bubbles: true });
+    element.dispatchEvent(event);
+}
+
+/**
+ * Generate session token for billing optimization
+ */
+function generateSessionToken() {
+    return 'xxxx-xxxx-xxxx-xxxx'.replace(/x/g, function() {
+        return (Math.random() * 16 | 0).toString(16);
+    });
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+    var map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 }

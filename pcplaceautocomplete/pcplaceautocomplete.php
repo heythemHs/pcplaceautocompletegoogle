@@ -17,7 +17,7 @@ class PcPlaceAutocomplete extends Module
     {
         $this->name = 'pcplaceautocomplete';
         $this->tab = 'checkout';
-        $this->version = '1.0.0';
+        $this->version = '2.0.0';
         $this->author = 'Your Name';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = array('min' => '1.7.0.0', 'max' => _PS_VERSION_);
@@ -171,14 +171,13 @@ class PcPlaceAutocomplete extends Module
         $controller = $this->context->controller->php_self;
 
         if (in_array($controller, array('order', 'address', 'checkout'))) {
-            // Add Google Places API
-            $this->context->controller->registerJavascript(
-                'google-places-api',
-                'https://maps.googleapis.com/maps/api/js?key=' . $api_key . '&libraries=places',
-                array('server' => 'remote', 'position' => 'head', 'priority' => 10)
-            );
+            // Pass configuration to JavaScript
+            Media::addJsDef(array(
+                'pcplace_ajax_url' => $this->context->link->getModuleLink($this->name, 'ajax'),
+                'pcplace_session_token' => bin2hex(random_bytes(16)), // Generate session token
+            ));
 
-            // Add our custom JS
+            // Add our custom JS (now using new Places API)
             $this->context->controller->registerJavascript(
                 'module-pcplaceautocomplete-front',
                 'modules/' . $this->name . '/views/js/front.js',

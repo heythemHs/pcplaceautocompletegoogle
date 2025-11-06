@@ -1,4 +1,4 @@
-# Installation Guide - PrestaShop Google Places Autocomplete Module
+# Installation Guide - PrestaShop Google Places Autocomplete Module (New API v2.0)
 
 ## Quick Start
 
@@ -40,9 +40,13 @@
 
 **3.3. Enable Required APIs**
 1. Go to **APIs & Services > Library**
-2. Search and enable these APIs:
-   - **Places API**
-   - **Maps JavaScript API**
+2. Search for "**Places API (New)**"
+3. Click on it and enable it
+
+**Important Notes:**
+- This module uses the **NEW** Places API (also called "Places API (New)" in Google Cloud Console)
+- This is different from the legacy "Places API"
+- Make sure you enable "Places API (New)" specifically
 
 **3.4. Create API Key**
 1. Go to **APIs & Services > Credentials**
@@ -53,16 +57,14 @@
 **3.5. Restrict API Key (Recommended)**
 1. Click on your newly created API key
 2. Under **Application restrictions**:
-   - Select "HTTP referrers (web sites)"
-   - Click "ADD AN ITEM"
-   - Add: `yourdomain.com/*`
-   - Add: `*.yourdomain.com/*`
+   - Select "None" or "IP addresses" (add your server IP if you choose this option)
+   - Since the module uses server-side proxy, HTTP referrer restrictions are not needed
 3. Under **API restrictions**:
    - Select "Restrict key"
-   - Check these APIs:
-     - Places API
-     - Maps JavaScript API
+   - Choose **"Places API (New)"** from the list
 4. Click **Save**
+
+**Security Note:** Version 2.0+ uses server-side proxy for all API calls, so your API key is never exposed in the frontend. However, restricting it to only "Places API (New)" is still recommended.
 
 ### 4. Configure the Module
 
@@ -212,7 +214,7 @@ For issues or questions:
 
 ## Module Info
 
-- **Version**: 1.0.0
+- **Version**: 2.0.0
 - **Compatibility**: PrestaShop 1.7.0.0+
 - **PHP**: 7.1+
 - **License**: MIT
